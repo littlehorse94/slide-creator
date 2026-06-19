@@ -6,8 +6,8 @@ import SlidePreview from "@/components/SlidePreview";
 import { PresentationPlan } from "@/lib/generateSlides";
 
 export default function Home() {
-  const [referenceFile, setReferenceFile] = useState<File | null>(null);
-  const [sourceFile, setSourceFile] = useState<File | null>(null);
+  const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
+  const [sourceFiles, setSourceFiles] = useState<File[]>([]);
   const [prompt, setPrompt] = useState("");
   const [format, setFormat] = useState<"pptx" | "pdf">("pptx");
   const [loading, setLoading] = useState(false);
@@ -33,8 +33,8 @@ export default function Home() {
       const body = new FormData();
       body.append("prompt", prompt);
       body.append("format", outputFormat);
-      if (referenceFile) body.append("reference", referenceFile);
-      if (sourceFile) body.append("source", sourceFile);
+      for (const f of referenceFiles) body.append("reference", f);
+      for (const f of sourceFiles) body.append("source", f);
 
       const res = await fetch("/api/generate", { method: "POST", body });
 
@@ -51,9 +51,7 @@ export default function Home() {
       }
 
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      setDownloadUrl(url);
-
+      setDownloadUrl(URL.createObjectURL(blob));
       const cd = res.headers.get("Content-Disposition") || "";
       const match = cd.match(/filename="?([^"]+)"?/);
       setDownloadFilename(match?.[1] ?? `slides.${outputFormat}`);
@@ -67,8 +65,8 @@ export default function Home() {
   };
 
   const handleReset = () => {
-    setReferenceFile(null);
-    setSourceFile(null);
+    setReferenceFiles([]);
+    setSourceFiles([]);
     setPrompt("");
     setPlan(null);
     setDownloadUrl(null);
@@ -76,7 +74,7 @@ export default function Home() {
   };
 
   const completedSteps = [
-    referenceFile || sourceFile,
+    referenceFiles.length > 0 || sourceFiles.length > 0,
     prompt.trim().length > 0,
     !!plan,
   ].filter(Boolean).length;
@@ -86,7 +84,7 @@ export default function Home() {
 
       {/* ── HEADER ── */}
       <header style={{ background: "#1B9BD9", borderBottom: "4px solid #1482b8" }}>
-        <div className="max-w-5xl mx-auto px-6 h-18 py-4 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div
               className="w-11 h-11 rounded-2xl flex items-center justify-center text-2xl font-black shadow-md"
@@ -100,8 +98,14 @@ export default function Home() {
             </div>
           </div>
 
-          {/* XP-style progress pills */}
           <div className="flex items-center gap-2">
+            {/* Ollama badge */}
+            <div
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold mr-2"
+              style={{ background: "rgba(255,255,255,0.15)", color: "white", border: "2px solid rgba(255,255,255,0.25)" }}
+            >
+              🦙 Ollama (local)
+            </div>
             {["Upload", "Describe", "Create"].map((label, i) => {
               const done = completedSteps > i;
               const active = completedSteps === i;
@@ -125,20 +129,34 @@ export default function Home() {
 
       <main className="max-w-5xl mx-auto px-6 py-10 space-y-6">
 
-        {/* ── HERO BANNER ── */}
+        {/* ── HERO ── */}
         <div
           className="rounded-3xl p-8 flex items-center justify-between overflow-hidden relative"
           style={{ background: "linear-gradient(135deg, #1B3A6B 0%, #1B9BD9 100%)", border: "3px solid #1B3A6B", borderBottom: "6px solid #132b52" }}
         >
           <div className="relative z-10">
-            <h1 className="text-white font-black text-3xl leading-tight mb-1">
-              Build slides in seconds 🚀
-            </h1>
+            <h1 className="text-white font-black text-3xl leading-tight mb-1">Build slides in seconds 🚀</h1>
             <p className="text-blue-200 font-semibold text-sm max-w-md">
               Drop your data, describe your vision, and let AI craft a branded presentation — complete with Vista &amp; Qualitas logos.
             </p>
           </div>
           <div className="text-8xl select-none opacity-30 absolute right-8 top-1/2 -translate-y-1/2">📊</div>
+        </div>
+
+        {/* ── OLLAMA SETUP NOTICE ── */}
+        <div
+          className="rounded-2xl p-4 flex items-start gap-3"
+          style={{ background: "#fffbea", border: "2px solid #f5d86a", borderBottom: "4px solid #e6c84a" }}
+        >
+          <span className="text-2xl mt-0.5">🦙</span>
+          <div>
+            <div className="font-black text-sm" style={{ color: "#7a5a00" }}>Using Ollama (local AI — free &amp; private)</div>
+            <div className="text-xs font-semibold mt-1" style={{ color: "#9a7a20" }}>
+              Make sure Ollama is running: <code className="bg-yellow-100 px-1 rounded">ollama serve</code> · Default model: <code className="bg-yellow-100 px-1 rounded">llama3.2</code>.
+              For image references, also pull a vision model: <code className="bg-yellow-100 px-1 rounded">ollama pull llama3.2-vision</code>.
+              Change model via <code className="bg-yellow-100 px-1 rounded">OLLAMA_MODEL</code> env var.
+            </div>
+          </div>
         </div>
 
         {/* ── STEP 1: UPLOADS ── */}
@@ -147,40 +165,40 @@ export default function Home() {
             <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm" style={{ background: "#1B9BD9", border: "2px solid #1482b8" }}>1</div>
             <div>
               <div className="font-black text-lg" style={{ color: "#1B3A6B" }}>Upload your files</div>
-              <div className="text-slate-500 text-xs font-semibold">Both are optional — AI will ask if critical data is missing</div>
+              <div className="text-slate-500 text-xs font-semibold">Add as many files as you need — both zones support multiple files</div>
             </div>
           </div>
           <div className="grid md:grid-cols-2 gap-5">
             <DropZone
-              label="📸 Reference Slide or Image"
-              hint="PDF or image — AI will copy this design style"
+              label="📸 Reference Slides or Images"
+              hint="PDF or images — AI will copy this design style"
               accept={{
                 "application/pdf": [".pdf"],
                 "image/png": [".png"],
                 "image/jpeg": [".jpg", ".jpeg"],
                 "image/webp": [".webp"],
               }}
-              file={referenceFile}
-              onFile={setReferenceFile}
+              files={referenceFiles}
+              onFiles={setReferenceFiles}
               icon={
-                <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               }
             />
             <DropZone
-              label="📊 Data Source"
-              hint="Excel, CSV, or PDF — AI extracts the content"
+              label="📊 Data Sources"
+              hint="Excel, CSV, or PDF — AI extracts content from all files"
               accept={{
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
                 "application/vnd.ms-excel": [".xls"],
                 "text/csv": [".csv"],
                 "application/pdf": [".pdf"],
               }}
-              file={sourceFile}
-              onFile={setSourceFile}
+              files={sourceFiles}
+              onFiles={setSourceFiles}
               icon={
-                <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               }
@@ -197,37 +215,21 @@ export default function Home() {
               <div className="text-slate-500 text-xs font-semibold">Tell AI what to create — be as detailed as you like</div>
             </div>
           </div>
-
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="e.g. Create a Q3 2024 quarterly report for Vista Eye Specialist with patient volume stats, revenue by clinic, and a highlight on the new Petaling Jaya branch opening. Keep it professional and concise — 8 slides max."
             rows={5}
             className="w-full rounded-2xl p-4 text-sm font-semibold placeholder-slate-400 resize-none focus:outline-none transition-all"
-            style={{
-              border: "2px solid #e0e9f5",
-              borderBottom: "4px solid #c8d8ea",
-              color: "#1B3A6B",
-              background: "#f8fbff",
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = "#1B9BD9";
-              e.target.style.borderBottomColor = "#1482b8";
-              e.target.style.background = "#fff";
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = "#e0e9f5";
-              e.target.style.borderBottomColor = "#c8d8ea";
-              e.target.style.background = "#f8fbff";
-            }}
+            style={{ border: "2px solid #e0e9f5", borderBottom: "4px solid #c8d8ea", color: "#1B3A6B", background: "#f8fbff" }}
+            onFocus={(e) => { e.target.style.borderColor = "#1B9BD9"; e.target.style.borderBottomColor = "#1482b8"; e.target.style.background = "#fff"; }}
+            onBlur={(e) => { e.target.style.borderColor = "#e0e9f5"; e.target.style.borderBottomColor = "#c8d8ea"; e.target.style.background = "#f8fbff"; }}
           />
           <div className="flex items-center justify-between mt-2">
             <span className="text-xs text-slate-400 font-semibold">
               {prompt.length > 0 ? `${prompt.length} characters` : "Try to be specific for better results!"}
             </span>
-            {prompt.length > 20 && (
-              <span className="text-xs font-bold" style={{ color: "#8DC63F" }}>✓ Looks good!</span>
-            )}
+            {prompt.length > 20 && <span className="text-xs font-bold" style={{ color: "#8DC63F" }}>✓ Looks good!</span>}
           </div>
         </div>
 
@@ -242,7 +244,6 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-            {/* Format toggle */}
             <div className="flex gap-3">
               {(["pptx", "pdf"] as const).map((f) => (
                 <button
@@ -251,19 +252,8 @@ export default function Home() {
                   className="px-5 py-3 rounded-2xl font-black text-sm transition-all"
                   style={
                     format === f
-                      ? {
-                          background: "#1B9BD9",
-                          color: "white",
-                          border: "2px solid #1482b8",
-                          borderBottom: "4px solid #1482b8",
-                          transform: "translateY(0)",
-                        }
-                      : {
-                          background: "#f0f8ff",
-                          color: "#1B9BD9",
-                          border: "2px solid #c8dff5",
-                          borderBottom: "4px solid #b0cce8",
-                        }
+                      ? { background: "#1B9BD9", color: "white", border: "2px solid #1482b8", borderBottom: "4px solid #1482b8" }
+                      : { background: "#f0f8ff", color: "#1B9BD9", border: "2px solid #c8dff5", borderBottom: "4px solid #b0cce8" }
                   }
                 >
                   {f === "pptx" ? "📑 PPTX" : "📄 PDF"}
@@ -271,7 +261,6 @@ export default function Home() {
               ))}
             </div>
 
-            {/* Generate button */}
             <button
               onClick={() => doGenerate()}
               disabled={loading || !prompt.trim()}
@@ -292,10 +281,7 @@ export default function Home() {
                   Generating…
                 </>
               ) : (
-                <>
-                  <span className="text-xl">⚡</span>
-                  Create Slides!
-                </>
+                <><span className="text-xl">⚡</span> Create Slides!</>
               )}
             </button>
           </div>
@@ -311,40 +297,27 @@ export default function Home() {
           )}
         </div>
 
-        {/* ── LOADING STATE ── */}
+        {/* ── LOADING ── */}
         {loading && (
-          <div
-            className="card-duo bg-white p-12 text-center"
-          >
+          <div className="card-duo bg-white p-12 text-center">
             <div className="flex flex-col items-center gap-5">
               <div
                 className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl animate-bounce shadow-lg"
                 style={{ background: "linear-gradient(135deg, #1B9BD9, #1B3A6B)", border: "3px solid #1482b8" }}
               >
-                🤖
+                🦙
               </div>
               <div>
-                <div className="font-black text-xl" style={{ color: "#1B3A6B" }}>AI is hard at work…</div>
-                <div className="text-slate-500 font-semibold text-sm mt-1">Crafting your slides — usually takes 30–60 seconds</div>
+                <div className="font-black text-xl" style={{ color: "#1B3A6B" }}>Ollama is thinking…</div>
+                <div className="text-slate-500 font-semibold text-sm mt-1">Local AI is generating your slides — usually takes 30–90 seconds</div>
               </div>
-              {/* Loading bar */}
               <div className="w-64 h-4 rounded-full overflow-hidden" style={{ background: "#e0e9f5", border: "2px solid #c8d8ea" }}>
                 <div
                   className="h-full rounded-full"
-                  style={{
-                    background: "linear-gradient(90deg, #1B9BD9, #8DC63F)",
-                    animation: "loading-bar 2s ease-in-out infinite",
-                    width: "60%",
-                  }}
+                  style={{ background: "linear-gradient(90deg, #1B9BD9, #8DC63F)", animation: "loading-bar 2s ease-in-out infinite" }}
                 />
               </div>
-              <style>{`
-                @keyframes loading-bar {
-                  0% { width: 10%; }
-                  50% { width: 80%; }
-                  100% { width: 10%; }
-                }
-              `}</style>
+              <style>{`@keyframes loading-bar { 0%{width:10%} 50%{width:80%} 100%{width:10%} }`}</style>
             </div>
           </div>
         )}
@@ -352,8 +325,6 @@ export default function Home() {
         {/* ── RESULT ── */}
         {plan && downloadUrl && (
           <div ref={resultRef} className="space-y-5">
-
-            {/* Success banner */}
             <div
               className="rounded-3xl p-6 flex items-center justify-between"
               style={{ background: "linear-gradient(135deg, #8DC63F, #5fa82a)", border: "3px solid #75a832", borderBottom: "6px solid #5a8424" }}
@@ -367,14 +338,13 @@ export default function Home() {
               </div>
               <button
                 onClick={handleReset}
-                className="px-4 py-2 rounded-xl font-bold text-sm transition-all"
+                className="px-4 py-2 rounded-xl font-bold text-sm"
                 style={{ background: "rgba(255,255,255,0.25)", color: "white", border: "2px solid rgba(255,255,255,0.4)" }}
               >
                 Start over
               </button>
             </div>
 
-            {/* Preview card */}
             <div className="card-duo bg-white p-7">
               <div className="flex items-center gap-2 mb-5">
                 <span className="text-xl">👁️</span>
@@ -386,7 +356,6 @@ export default function Home() {
               <SlidePreview plan={plan} currentSlide={currentSlide} onSlideChange={setCurrentSlide} />
             </div>
 
-            {/* Download card */}
             <div className="card-duo bg-white p-7">
               <div className="flex items-center gap-2 mb-5">
                 <span className="text-xl">📥</span>
@@ -396,30 +365,17 @@ export default function Home() {
                 <a
                   href={downloadUrl}
                   download={downloadFilename}
-                  className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl text-white font-black text-sm transition-all btn-chunky"
-                  style={{
-                    background: "linear-gradient(135deg, #1B9BD9, #1B3A6B)",
-                    border: "2px solid #1482b8",
-                    borderBottom: "4px solid #132b52",
-                  }}
+                  className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl text-white font-black text-sm btn-chunky"
+                  style={{ background: "linear-gradient(135deg, #1B9BD9, #1B3A6B)", border: "2px solid #1482b8", borderBottom: "4px solid #132b52" }}
                 >
                   <span className="text-xl">{format === "pptx" ? "📑" : "📄"}</span>
                   Download {format.toUpperCase()}
                 </a>
                 <button
-                  onClick={() => {
-                    const alt = format === "pptx" ? "pdf" : "pptx";
-                    setFormat(alt);
-                    doGenerate(alt);
-                  }}
+                  onClick={() => { const alt = format === "pptx" ? "pdf" : "pptx"; setFormat(alt); doGenerate(alt); }}
                   disabled={loading}
-                  className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-black text-sm transition-all btn-chunky disabled:opacity-50"
-                  style={{
-                    background: "#f0f8ff",
-                    color: "#1B9BD9",
-                    border: "2px solid #c8dff5",
-                    borderBottom: "4px solid #b0cce8",
-                  }}
+                  className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-black text-sm btn-chunky disabled:opacity-50"
+                  style={{ background: "#f0f8ff", color: "#1B9BD9", border: "2px solid #c8dff5", borderBottom: "4px solid #b0cce8" }}
                 >
                   <span className="text-xl">{format === "pptx" ? "📄" : "📑"}</span>
                   Also get as {format === "pptx" ? "PDF" : "PPTX"}
@@ -433,7 +389,7 @@ export default function Home() {
       <footer className="mt-16 py-6" style={{ borderTop: "3px solid #d0e8f5", background: "rgba(255,255,255,0.5)" }}>
         <div className="max-w-5xl mx-auto px-6 flex items-center justify-between text-xs font-bold text-slate-400">
           <span>Vista Eye Specialist · Internal Tool</span>
-          <span>⚡ Powered by Claude AI · Qualitas Health</span>
+          <span>🦙 Ollama (local) · Qualitas Health</span>
         </div>
       </footer>
     </div>

@@ -1,94 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generatePresentationPlan } from "@/lib/generateSlides";
+import { generatePresentationPlan, describeReferenceImage } from "@/lib/generateSlides";
 import { buildPptx } from "@/lib/buildPptx";
 import { buildPdf } from "@/lib/buildPdf";
 import { parseSourceFile } from "@/lib/parseSource";
-import Anthropic from "@anthropic-ai/sdk";
 
 export const maxDuration = 120;
-
-async function describeReference(
-  fileBuffer: Buffer,
-  mimeType: string
-): Promise<string> {
-  const client = new Anthropic();
-
-  if (mimeType.startsWith("image/")) {
-    const base64 = fileBuffer.toString("base64");
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1000,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: mimeType as "image/png" | "image/jpeg" | "image/gif" | "image/webp",
-                data: base64,
-              },
-            },
-            {
-              type: "text",
-              text: "Describe the layout, style, color scheme, and structure of this slide/presentation reference image so I can replicate the design.",
-            },
-          ],
-        },
-      ],
-    });
-    return response.content[0].type === "text" ? response.content[0].text : "";
-  }
-
-  if (mimeType === "application/pdf") {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require("pdf-parse");
-    const data = await pdfParse(fileBuffer);
-    return `Reference PDF content (first 2000 chars): ${data.text.slice(0, 2000)}`;
-  }
-
-  return "";
-}
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const prompt = formData.get("prompt") as string;
     const outputFormat = (formData.get("format") as string) || "pptx";
-    const referenceFile = formData.get("reference") as File | null;
-    const sourceFile = formData.get("source") as File | null;
 
     if (!prompt) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
     }
 
-    // Parse source file
-    let sourceContent: string | null = null;
-    if (sourceFile) {
-      const sourceBuffer = Buffer.from(await sourceFile.arrayBuffer());
-      sourceContent = await parseSourceFile(
-        sourceBuffer,
-        sourceFile.type,
-        sourceFile.name
-      );
+    // Collect multiple reference files
+    const referenceFiles = formData.getAll("reference") as File[];
+    // Collect multiple source files
+    const sourceFiles = formData.getAll("source") as File[];
+
+    // Parse all source files and concatenate
+    const sourceParts: string[] = [];
+    for (const file of sourceFiles) {
+      const buf = Buffer.from(await file.arrayBuffer());
+      const text = await parseSourceFile(buf, file.type, file.name);
+      sourceParts.push(`--- ${file.name} ---\n${text}`);
+    }
+    const sourceContent = sourceParts.length > 0 ? sourceParts.join("\n\n") : null;
+
+    // Describe all reference files
+    const referenceDescriptions: string[] = [];
+    for (const file of referenceFiles) {
+      const buf = Buffer.from(await file.arrayBuffer());
+      const desc = await describeReferenceImage(buf, file.type, file.name);
+      if (desc) referenceDescriptions.push(`[${file.name}]: ${desc}`);
     }
 
-    // Describe reference file
-    let referenceDescription: string | null = null;
-    if (referenceFile) {
-      const refBuffer = Buffer.from(await referenceFile.arrayBuffer());
-      referenceDescription = await describeReference(refBuffer, referenceFile.type);
-    }
+    // Generate presentation plan
+    const plan = await generatePresentationPlan(prompt, sourceContent, referenceDescriptions);
 
-    // Generate presentation plan via Claude
-    const plan = await generatePresentationPlan(
-      prompt,
-      sourceContent,
-      referenceDescription
-    );
-
-    // Build the output file
+    // Build output file
     let fileBuffer: Buffer;
     let contentType: string;
     let filename: string;
