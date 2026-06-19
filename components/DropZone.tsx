@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 
 interface DropZoneProps {
@@ -12,73 +12,77 @@ interface DropZoneProps {
   icon: React.ReactNode;
 }
 
-export default function DropZone({
-  label,
-  accept,
-  hint,
-  onFile,
-  file,
-  icon,
-}: DropZoneProps) {
+export default function DropZone({ label, accept, hint, onFile, file, icon }: DropZoneProps) {
   const onDrop = useCallback(
-    (accepted: File[]) => {
-      if (accepted.length > 0) onFile(accepted[0]);
-    },
+    (accepted: File[]) => { if (accepted.length > 0) onFile(accepted[0]); },
     [onFile]
   );
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept,
-    maxFiles: 1,
-  });
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept, maxFiles: 1 });
 
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-sm font-semibold text-slate-700">{label}</label>
+      <label className="text-sm font-black" style={{ color: "#1B3A6B" }}>{label}</label>
       <div
         {...getRootProps()}
-        className={`relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-200 ${
-          isDragActive
-            ? "border-[#1B9BD9] bg-blue-50 scale-[1.01]"
+        className="relative cursor-pointer transition-all duration-150"
+        style={{
+          border: isDragActive
+            ? "3px solid #1B9BD9"
             : file
-            ? "border-[#8DC63F] bg-green-50"
-            : "border-slate-300 bg-slate-50 hover:border-[#1B9BD9] hover:bg-blue-50"
-        }`}
+            ? "3px solid #8DC63F"
+            : "3px dashed #b8d4e8",
+          borderBottom: isDragActive
+            ? "5px solid #1482b8"
+            : file
+            ? "5px solid #75a832"
+            : "5px dashed #9cbdd6",
+          borderRadius: 18,
+          padding: "24px 16px",
+          background: isDragActive
+            ? "#eef7ff"
+            : file
+            ? "#f0faed"
+            : "#f8fbff",
+          transform: isDragActive ? "scale(1.01)" : "scale(1)",
+        }}
       >
         <input {...getInputProps()} />
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-2 text-center">
           <div
-            className={`text-3xl transition-colors ${
-              file ? "text-[#8DC63F]" : "text-slate-400"
-            }`}
+            className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all"
+            style={{
+              background: file ? "#8DC63F" : isDragActive ? "#1B9BD9" : "#ddeeff",
+              color: file || isDragActive ? "white" : "#1B9BD9",
+              border: file ? "2px solid #75a832" : isDragActive ? "2px solid #1482b8" : "2px solid #b8d4e8",
+            }}
           >
             {icon}
           </div>
+
           {file ? (
             <div>
-              <p className="text-sm font-medium text-[#1B3A6B]">{file.name}</p>
-              <p className="text-xs text-slate-500 mt-1">
-                {(file.size / 1024).toFixed(1)} KB
-              </p>
+              <div className="font-black text-sm" style={{ color: "#1B3A6B" }}>{file.name}</div>
+              <div className="text-xs font-semibold text-slate-400 mt-0.5">
+                {(file.size / 1024).toFixed(1)} KB · Ready ✓
+              </div>
             </div>
           ) : (
             <div>
-              <p className="text-sm font-medium text-slate-600">
-                {isDragActive ? "Drop here…" : "Drop file or click to browse"}
-              </p>
-              <p className="text-xs text-slate-400 mt-1">{hint}</p>
+              <div className="font-bold text-sm" style={{ color: isDragActive ? "#1B9BD9" : "#4a6a8a" }}>
+                {isDragActive ? "Drop it! 🎯" : "Drop file or click to browse"}
+              </div>
+              <div className="text-xs font-semibold text-slate-400 mt-0.5">{hint}</div>
             </div>
           )}
         </div>
+
         {file && (
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onFile(null);
-            }}
-            className="absolute top-2 right-2 w-6 h-6 rounded-full bg-slate-200 hover:bg-red-100 text-slate-500 hover:text-red-500 flex items-center justify-center text-xs font-bold transition-colors"
+            onClick={(e) => { e.stopPropagation(); onFile(null); }}
+            className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-all"
+            style={{ background: "#ffe0e0", color: "#cc3333", border: "2px solid #ffbdbd" }}
           >
             ✕
           </button>
