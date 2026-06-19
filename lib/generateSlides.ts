@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, Part } from "@google/generative-ai";
+import Groq from "groq-sdk";
 
 export interface ChartDataset {
   name: string;
@@ -107,11 +107,7 @@ export async function generatePresentationPlan(
   sourceContent: string | null,
   referenceDescriptions: string[]
 ): Promise<PresentationPlan> {
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-  const model = genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
-    systemInstruction: SYSTEM_PROMPT,
-  });
+  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
   const userMessage = `USER REQUEST: ${prompt}
 
@@ -123,8 +119,17 @@ ${referenceDescriptions.length > 0 ? `STYLE REFERENCE:\n${referenceDescriptions.
 
 Now output the complete JSON presentation plan. Use only real data from the source above.`;
 
-  const result = await model.generateContent(userMessage);
-  const text   = result.response.text();
+  const completion = await groq.chat.completions.create({
+    model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user",   content: userMessage },
+    ],
+    max_tokens: 4096,
+    temperature: 0.3,
+  });
+
+  const text = completion.choices[0]?.message?.content || "";
   return extractJson(text);
 }
 
@@ -141,18 +146,29 @@ export async function describeReferenceFile(
   }
 
   if (mimeType.startsWith("image/")) {
-    // Use Gemini vision to describe reference image
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-    const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-1.5-flash" });
-
-    const imagePart: Part = {
-      inlineData: { data: fileBuffer.toString("base64"), mimeType: mimeType as "image/png" | "image/jpeg" | "image/webp" },
-    };
-    const result = await model.generateContent([
-      imagePart,
-      "Describe the layout, color scheme, font style, and overall design of this presentation slide so I can recreate the same style.",
-    ]);
-    return result.response.text();
+    // Groq vision: describe the reference slide image
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    const base64 = fileBuffer.toString("base64");
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.2-11b-vision-preview",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image_url",
+              image_url: { url: `data:${mimeType};base64,${base64}` },
+            },
+            {
+              type: "text",
+              text: "Describe the layout, color scheme, font style, and overall design of this presentation slide so I can recreate the same style.",
+            },
+          ],
+        },
+      ],
+      max_tokens: 512,
+    });
+    return completion.choices[0]?.message?.content || `Reference image: ${filename}`;
   }
 
   return `Reference file: ${filename}`;
