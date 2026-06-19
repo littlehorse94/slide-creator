@@ -1,17 +1,25 @@
 import Groq from "groq-sdk";
 
+export interface ChartDataset {
+  name: string;
+  labels: string[];
+  values: number[];
+}
+
 export interface SlideContent {
   title: string;
   subtitle?: string;
   bullets?: string[];
   body?: string;
   notes?: string;
-  layout?: "title" | "content" | "image-left" | "image-right" | "two-column" | "big-stat";
+  layout?: "title" | "content" | "image-right" | "image-left" | "two-column" | "big-stat" | "chart";
   leftColumn?: string[];
   rightColumn?: string[];
-  imageQuery?: string;        // Pexels search query for this slide
-  stat?: string;              // For big-stat layout e.g. "98%"
+  imageQuery?: string;
+  stat?: string;
   statLabel?: string;
+  chartType?: "bar" | "pie" | "line";
+  chartData?: ChartDataset[];
 }
 
 export interface PresentationPlan {
@@ -27,42 +35,49 @@ export interface PresentationPlan {
   slides: SlideContent[];
 }
 
-const SYSTEM_PROMPT = `You are an expert presentation designer for Vista Eye Specialist, a professional ophthalmology clinic under Qualitas Health.
-Generate a structured JSON plan for a PowerPoint presentation.
+const SYSTEM_PROMPT = `You are a senior presentation designer for Vista Eye Specialist (ophthalmology clinic, Qualitas Health group).
 
-RULES:
-- Respond with valid JSON ONLY — no markdown, no code fences, no explanation
-- Professional slides for a medical/corporate audience
-- Vista brand colors: primary #1B9BD9, dark navy #1B3A6B, accent green #8DC63F
-- Generate 6–12 slides
-- Use source data accurately when provided
-- Every slide MUST include an "imageQuery" field: a short, vivid English phrase for Pexels stock photo search (e.g. "modern eye clinic interior", "ophthalmologist examining patient", "medical team meeting")
-- Vary the layouts — use a mix of content, image-right, image-left, two-column, and big-stat
+Your job: turn the user's request and source data into a detailed, data-rich slide plan JSON.
+
+STRICT RULES:
+1. Return ONLY raw JSON — no markdown fences, no explanation, nothing else
+2. ALWAYS use the actual numbers and names from the SOURCE DATA — do NOT invent placeholder text
+3. Generate 7–10 slides with RICH, SPECIFIC content on every slide
+4. Every bullet must be a complete, informative sentence with real data — NO vague filler like "Key metric here"
+5. Every slide MUST have an "imageQuery" field (short vivid English phrase for Pexels stock search)
+6. Include at least 2 chart slides if the source data contains numbers
+7. Vary layouts — use all layout types across the deck
 
 LAYOUT TYPES:
-- "title"        → opening slide (title + subtitle)
-- "content"      → text/bullets only
-- "image-right"  → bullets on left, full photo on right half
-- "image-left"   → full photo on left half, bullets on right
-- "two-column"   → leftColumn[] and rightColumn[] side by side
-- "big-stat"     → large centered number/stat with a label and supporting bullets
+- "title"        → title + subtitle only (first slide)
+- "content"      → 4–6 detailed bullet points
+- "image-right"  → 4–5 bullets on left, photo on right
+- "image-left"   → photo on left, 4–5 bullets on right
+- "two-column"   → leftColumn[] and rightColumn[] (3–5 items each)
+- "big-stat"     → one large number/KPI + statLabel + 3–4 supporting bullets
+- "chart"        → bar/pie/line chart with real data from the source file
 
-JSON SCHEMA:
+CHART SCHEMA (use real numbers from source data):
 {
-  "title": "Presentation Title",
-  "theme": {
-    "primaryColor": "#1B9BD9",
-    "secondaryColor": "#1B3A6B",
-    "backgroundColor": "#FFFFFF",
-    "accentColor": "#8DC63F",
-    "fontTitle": "Calibri",
-    "fontBody": "Calibri"
-  },
+  "layout": "chart",
+  "title": "Slide Title",
+  "chartType": "bar",
+  "chartData": [{ "name": "Series name", "labels": ["Label1","Label2"], "values": [42, 58] }],
+  "bullets": ["Insight from the data", "Another observation"],
+  "imageQuery": "data analytics medical"
+}
+
+FULL JSON SCHEMA:
+{
+  "title": "Full Presentation Title",
+  "theme": { "primaryColor": "#1B9BD9", "secondaryColor": "#1B3A6B", "backgroundColor": "#FFFFFF", "accentColor": "#8DC63F", "fontTitle": "Calibri", "fontBody": "Calibri" },
   "slides": [
-    { "layout": "title",       "title": "...", "subtitle": "...", "imageQuery": "eye specialist clinic reception" },
-    { "layout": "image-right", "title": "...", "bullets": ["..."], "imageQuery": "ophthalmologist patient consultation", "notes": "..." },
-    { "layout": "big-stat",    "title": "...", "stat": "98%", "statLabel": "Patient satisfaction", "bullets": ["supporting point"], "imageQuery": "happy medical patient" },
-    { "layout": "two-column",  "title": "...", "leftColumn": ["..."], "rightColumn": ["..."], "imageQuery": "medical team" }
+    { "layout": "title", "title": "...", "subtitle": "...", "imageQuery": "..." },
+    { "layout": "content", "title": "...", "bullets": ["Full sentence with real data.", "..."], "imageQuery": "..." },
+    { "layout": "chart", "title": "...", "chartType": "bar", "chartData": [{ "name": "...", "labels": ["..."], "values": [0] }], "bullets": ["Insight."], "imageQuery": "..." },
+    { "layout": "big-stat", "title": "...", "stat": "98%", "statLabel": "Patient Satisfaction", "bullets": ["..."], "imageQuery": "..." },
+    { "layout": "two-column", "title": "...", "leftColumn": ["..."], "rightColumn": ["..."], "imageQuery": "..." },
+    { "layout": "image-right", "title": "...", "bullets": ["..."], "imageQuery": "..." }
   ]
 }`;
 
@@ -71,15 +86,17 @@ function buildUserMessage(
   sourceContent: string | null,
   referenceDescriptions: string[]
 ): string {
-  return `Create a presentation based on:
+  const sourceSection = sourceContent
+    ? `SOURCE DATA (use ALL numbers and names exactly as they appear):\n${sourceContent.slice(0, 7000)}`
+    : "No source data provided — generate plausible but clearly labelled example data.";
 
-USER REQUEST: ${prompt}
+  return `USER REQUEST: ${prompt}
 
-${sourceContent ? `SOURCE DATA:\n${sourceContent.slice(0, 6000)}` : "No source data provided."}
+${sourceSection}
 
 ${referenceDescriptions.length > 0 ? `REFERENCE STYLE:\n${referenceDescriptions.join("\n")}` : ""}
 
-Respond with the JSON only.`;
+Generate the complete JSON presentation plan now. Use real data from the source. Every bullet must be a full sentence with specific details.`;
 }
 
 function extractJson(text: string): PresentationPlan {
@@ -99,7 +116,7 @@ export async function generatePresentationPlan(
   const response = await client.chat.completions.create({
     model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
     max_tokens: 8000,
-    temperature: 0.4,
+    temperature: 0.3,
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: buildUserMessage(prompt, sourceContent, referenceDescriptions) },
@@ -110,7 +127,6 @@ export async function generatePresentationPlan(
   return extractJson(text);
 }
 
-// Reference image description — text-only since Groq free tier is text only
 export async function describeReferenceFile(
   fileBuffer: Buffer,
   mimeType: string,
@@ -120,10 +136,10 @@ export async function describeReferenceFile(
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const pdfParse = require("pdf-parse");
     const data = await pdfParse(fileBuffer);
-    return `Reference PDF "${filename}" content:\n${data.text.slice(0, 2000)}`;
+    return `Reference PDF "${filename}":\n${data.text.slice(0, 2000)}`;
   }
   if (mimeType.startsWith("image/")) {
-    return `Reference image uploaded: "${filename}". Mirror its general layout — keep slides clean, structured, and professional.`;
+    return `Reference image "${filename}" — mirror its general layout style.`;
   }
   return `Reference file: ${filename}`;
 }
