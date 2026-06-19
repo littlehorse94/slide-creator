@@ -1,273 +1,256 @@
-import { PDFDocument, rgb, StandardFonts, PDFPage, PDFFont } from "pdf-lib";
+import { PDFDocument, rgb, StandardFonts, PDFPage, PDFFont, PDFImage } from "pdf-lib";
 import { PresentationPlan, SlideContent } from "./generateSlides";
+import { fetchPexelsPhoto, downloadImageAsBase64 } from "./pexels";
 import fs from "fs";
 import path from "path";
 
-// Vista brand colors as 0-1 RGB
-const DARK_BLUE = rgb(0.106, 0.227, 0.42);
-const VISTA_BLUE = rgb(0.106, 0.608, 0.851);
-const ACCENT_GREEN = rgb(0.553, 0.776, 0.247);
-const WHITE = rgb(1, 1, 1);
-const DARK_TEXT = rgb(0.13, 0.13, 0.13);
-const GRAY_TEXT = rgb(0.95, 0.97, 0.98);
+const W = 960, H = 540;
+const FOOTER_H = 32;
+const FOOTER_Y = FOOTER_H;
 
-const W = 960;
-const H = 540;
+const col = {
+  navy:   rgb(0.106, 0.227, 0.420),
+  blue:   rgb(0.106, 0.608, 0.851),
+  green:  rgb(0.553, 0.776, 0.247),
+  white:  rgb(1, 1, 1),
+  light:  rgb(0.953, 0.969, 0.988),
+  dark:   rgb(0.067, 0.094, 0.153),
+  gray:   rgb(0.420, 0.447, 0.502),
+  black:  rgb(0, 0, 0),
+};
 
-function logoFilePath(name: string) {
-  return path.join(process.cwd(), "public", "logos", name);
-}
+function logoFile(name: string) { return path.join(process.cwd(), "public", "logos", name); }
 
 async function embedLogos(doc: PDFDocument) {
-  const vistaPath = logoFilePath("vista-logo.png");
-  const qualitasPath = logoFilePath("qualitas-logo.png");
-  let vistaImg = null;
-  let qualitasImg = null;
-
-  try {
-    if (fs.existsSync(vistaPath)) {
-      const bytes = fs.readFileSync(vistaPath);
-      vistaImg = await doc.embedPng(bytes);
-    }
-  } catch {}
-  try {
-    if (fs.existsSync(qualitasPath)) {
-      const bytes = fs.readFileSync(qualitasPath);
-      qualitasImg = await doc.embedPng(bytes);
-    }
-  } catch {}
-
+  let vistaImg: PDFImage | null = null;
+  let qualitasImg: PDFImage | null = null;
+  try { if (fs.existsSync(logoFile("vista-logo.png")))   vistaImg   = await doc.embedPng(fs.readFileSync(logoFile("vista-logo.png"))); } catch {}
+  try { if (fs.existsSync(logoFile("qualitas-logo.png"))) qualitasImg = await doc.embedPng(fs.readFileSync(logoFile("qualitas-logo.png"))); } catch {}
   return { vistaImg, qualitasImg };
 }
 
-function drawLogos(
-  page: PDFPage,
-  vistaImg: any,
-  qualitasImg: any,
-  font: PDFFont,
-  darkBg = false
-) {
-  const logoH = 24;
-  const logoW = 110;
-  const logoY = 18;
-  const padding = 14;
-  const textColor = darkBg ? WHITE : DARK_BLUE;
+async function embedPhotoForSlide(doc: PDFDocument, imageQuery?: string): Promise<PDFImage | null> {
+  if (!imageQuery) return null;
+  try {
+    const photo = await fetchPexelsPhoto(imageQuery);
+    if (!photo) return null;
+    const b64 = await downloadImageAsBase64(photo.url);
+    if (!b64) return null;
+    const base64Data = b64.replace(/^data:image\/\w+;base64,/, "");
+    const buf = Buffer.from(base64Data, "base64");
+    return await doc.embedJpg(buf).catch(() => doc.embedPng(buf));
+  } catch { return null; }
+}
 
-  // Separator line
-  page.drawLine({
-    start: { x: padding, y: logoY + logoH + 4 },
-    end: { x: W - padding, y: logoY + logoH + 4 },
-    thickness: 0.5,
-    color: darkBg ? WHITE : VISTA_BLUE,
-  });
+function drawFooter(page: PDFPage, fonts: {bold:PDFFont; reg:PDFFont}, logos: {vistaImg:PDFImage|null; qualitasImg:PDFImage|null}, dark=false) {
+  const bg = dark ? col.navy : col.light;
+  page.drawRectangle({ x:0, y:0, width:W, height:FOOTER_H, color:bg });
+  page.drawLine({ start:{x:0,y:FOOTER_H}, end:{x:W,y:FOOTER_H}, thickness:1.5, color:col.blue });
 
-  if (vistaImg) {
-    const dims = vistaImg.scale(1);
-    const scale = Math.min(logoW / dims.width, logoH / dims.height);
-    page.drawImage(vistaImg, {
-      x: padding,
-      y: logoY,
-      width: dims.width * scale,
-      height: dims.height * scale,
-    });
+  const logoH = 18, logoW = 80, ly = (FOOTER_H - logoH) / 2;
+  const textCol = dark ? col.white : col.navy;
+
+  if (logos.vistaImg) {
+    const d = logos.vistaImg.scale(1);
+    const s = Math.min(logoW/d.width, logoH/d.height);
+    page.drawImage(logos.vistaImg, { x:14, y:ly, width:d.width*s, height:d.height*s });
   } else {
-    page.drawText("VISTA eye specialist", {
-      x: padding,
-      y: logoY + 4,
-      size: 8,
-      font,
-      color: textColor,
-    });
+    page.drawText("VISTA eye specialist", { x:14, y:ly+4, size:7, font:fonts.bold, color:textCol });
   }
-
-  if (qualitasImg) {
-    const dims = qualitasImg.scale(1);
-    const scale = Math.min(logoW / dims.width, logoH / dims.height);
-    page.drawImage(qualitasImg, {
-      x: W - padding - dims.width * scale,
-      y: logoY,
-      width: dims.width * scale,
-      height: dims.height * scale,
-    });
+  if (logos.qualitasImg) {
+    const d = logos.qualitasImg.scale(1);
+    const s = Math.min(logoW/d.width, logoH/d.height);
+    page.drawImage(logos.qualitasImg, { x:W-14-d.width*s, y:ly, width:d.width*s, height:d.height*s });
   } else {
-    const text = "QUALITAS health";
-    const textW = font.widthOfTextAtSize(text, 8);
-    page.drawText(text, {
-      x: W - padding - textW,
-      y: logoY + 4,
-      size: 8,
-      font,
-      color: textColor,
-    });
+    const t = "QUALITAS health";
+    page.drawText(t, { x:W-14-fonts.bold.widthOfTextAtSize(t,7), y:ly+4, size:7, font:fonts.bold, color:textCol });
   }
 }
 
-async function addTitleSlide(
-  doc: PDFDocument,
-  slide: SlideContent,
-  fonts: { bold: PDFFont; regular: PDFFont },
-  logos: { vistaImg: any; qualitasImg: any }
-) {
+async function buildTitlePage(doc: PDFDocument, slide: SlideContent, fonts:{bold:PDFFont;reg:PDFFont}, logos:{vistaImg:PDFImage|null;qualitasImg:PDFImage|null}) {
   const page = doc.addPage([W, H]);
+  const contentH = H - FOOTER_H;
 
-  // Dark blue background
-  page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: DARK_BLUE });
-  // Vista blue bottom panel
-  page.drawRectangle({ x: 0, y: 0, width: W, height: 160, color: VISTA_BLUE });
-  // Accent stripe
-  page.drawRectangle({ x: 0, y: 160, width: W, height: 5, color: ACCENT_GREEN });
+  page.drawRectangle({ x:0, y:FOOTER_H, width:W, height:contentH, color:col.navy });
 
-  // Title
-  const titleFontSize = 38;
-  page.drawText(slide.title, {
-    x: 60,
-    y: H - 180,
-    size: titleFontSize,
-    font: fonts.bold,
-    color: WHITE,
-    maxWidth: W - 120,
-  });
+  // Photo right panel
+  const photo = await embedPhotoForSlide(doc, slide.imageQuery);
+  if (photo) {
+    const d = photo.scale(1);
+    const pw = W * 0.6, ph = contentH;
+    const s = Math.max(pw/d.width, ph/d.height);
+    page.drawImage(photo, { x:W-pw, y:FOOTER_H, width:d.width*s, height:d.height*s, opacity:0.4 });
+  }
 
+  // Left panel overlay
+  page.drawRectangle({ x:0, y:FOOTER_H, width:W*0.46, height:contentH, color:col.navy });
+  // Blue left edge
+  page.drawRectangle({ x:0, y:FOOTER_H, width:5, height:contentH, color:col.blue });
+  // Green accent
+  page.drawRectangle({ x:0, y:H-220, width:W*0.4, height:4, color:col.green });
+
+  page.drawText(slide.title, { x:40, y:H-175, size:34, font:fonts.bold, color:col.white, maxWidth:W*0.42 });
   if (slide.subtitle) {
-    page.drawText(slide.subtitle, {
-      x: 60,
-      y: H - 230,
-      size: 18,
-      font: fonts.regular,
-      color: GRAY_TEXT,
-      maxWidth: W - 120,
-    });
+    page.drawText(slide.subtitle, { x:40, y:H-225, size:16, font:fonts.reg, color:rgb(0.65,0.78,0.9), maxWidth:W*0.42 });
   }
 
-  drawLogos(page, logos.vistaImg, logos.qualitasImg, fonts.regular, true);
+  drawFooter(page, fonts, logos, true);
 }
 
-async function addContentSlide(
-  doc: PDFDocument,
-  slide: SlideContent,
-  fonts: { bold: PDFFont; regular: PDFFont },
-  logos: { vistaImg: any; qualitasImg: any }
-) {
+async function buildContentPage(doc: PDFDocument, slide: SlideContent, fonts:{bold:PDFFont;reg:PDFFont}, logos:{vistaImg:PDFImage|null;qualitasImg:PDFImage|null}) {
   const page = doc.addPage([W, H]);
+  page.drawRectangle({ x:0, y:FOOTER_H, width:W, height:H-FOOTER_H, color:col.white });
+  page.drawRectangle({ x:0, y:H-70, width:W, height:70, color:col.navy });
+  page.drawRectangle({ x:0, y:H-74, width:W, height:4, color:col.green });
+  page.drawRectangle({ x:0, y:H-70, width:5, height:70, color:col.blue });
 
-  // White background
-  page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: WHITE });
-  // Header bar
-  page.drawRectangle({ x: 0, y: H - 72, width: W, height: 72, color: DARK_BLUE });
-  // Accent stripe
-  page.drawRectangle({ x: 0, y: H - 76, width: W, height: 4, color: ACCENT_GREEN });
+  page.drawText(slide.title, { x:24, y:H-50, size:24, font:fonts.bold, color:col.white, maxWidth:W-48 });
 
-  // Title
-  page.drawText(slide.title, {
-    x: 30,
-    y: H - 52,
-    size: 26,
-    font: fonts.bold,
-    color: WHITE,
-    maxWidth: W - 60,
-  });
-
-  let currentY = H - 110;
-
+  let y = H - 100;
   if (slide.body) {
-    page.drawText(slide.body, {
-      x: 30,
-      y: currentY,
-      size: 14,
-      font: fonts.regular,
-      color: DARK_TEXT,
-      maxWidth: W - 60,
-      lineHeight: 20,
-    });
-    currentY -= 60;
+    page.drawText(slide.body, { x:28, y, size:13, font:fonts.reg, color:col.dark, maxWidth:W-56, lineHeight:20 });
+    y -= 50;
   }
-
-  if (slide.bullets) {
-    for (const bullet of slide.bullets) {
-      if (currentY < 80) break;
-      // Bullet dot
-      page.drawCircle({ x: 46, y: currentY + 5, size: 3, color: VISTA_BLUE });
-      page.drawText(bullet, {
-        x: 58,
-        y: currentY,
-        size: 15,
-        font: fonts.regular,
-        color: DARK_TEXT,
-        maxWidth: W - 90,
-        lineHeight: 21,
-      });
-      currentY -= 34;
-    }
+  for (const b of slide.bullets ?? []) {
+    if (y < FOOTER_H + 20) break;
+    page.drawCircle({ x:42, y:y+5, size:3, color:col.blue });
+    page.drawText(b, { x:54, y, size:14, font:fonts.reg, color:col.dark, maxWidth:W-80, lineHeight:20 });
+    y -= 32;
   }
-
-  drawLogos(page, logos.vistaImg, logos.qualitasImg, fonts.regular, false);
+  drawFooter(page, fonts, logos);
 }
 
-async function addTwoColumnSlide(
-  doc: PDFDocument,
-  slide: SlideContent,
-  fonts: { bold: PDFFont; regular: PDFFont },
-  logos: { vistaImg: any; qualitasImg: any }
-) {
+async function buildImagePage(doc: PDFDocument, slide: SlideContent, fonts:{bold:PDFFont;reg:PDFFont}, logos:{vistaImg:PDFImage|null;qualitasImg:PDFImage|null}, imageOnRight: boolean) {
   const page = doc.addPage([W, H]);
-  page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: WHITE });
-  page.drawRectangle({ x: 0, y: H - 72, width: W, height: 72, color: DARK_BLUE });
-  page.drawRectangle({ x: 0, y: H - 76, width: W, height: 4, color: ACCENT_GREEN });
+  const contentH = H - FOOTER_H;
+  page.drawRectangle({ x:0, y:FOOTER_H, width:W, height:contentH, color:col.white });
 
-  page.drawText(slide.title, {
-    x: 30, y: H - 52, size: 26, font: fonts.bold, color: WHITE, maxWidth: W - 60,
-  });
+  const imgW = Math.floor(W * 0.46);
+  const textW = W - imgW - 10;
+  const imgX = imageOnRight ? W - imgW : 0;
+  const textX = imageOnRight ? 20 : imgW + 20;
 
-  // Divider
-  page.drawLine({
-    start: { x: W / 2, y: H - 88 },
-    end: { x: W / 2, y: 70 },
-    thickness: 1,
-    color: VISTA_BLUE,
-  });
-
-  const left = slide.leftColumn ?? [];
-  const right = slide.rightColumn ?? [];
-  let lyY = H - 108;
-  let ryY = H - 108;
-
-  for (const item of left) {
-    if (lyY < 80) break;
-    page.drawCircle({ x: 38, y: lyY + 5, size: 3, color: ACCENT_GREEN });
-    page.drawText(item, { x: 48, y: lyY, size: 13, font: fonts.regular, color: DARK_TEXT, maxWidth: W / 2 - 60 });
-    lyY -= 30;
+  const photo = await embedPhotoForSlide(doc, slide.imageQuery);
+  if (photo) {
+    const d = photo.scale(1);
+    const s = Math.max(imgW/d.width, contentH/d.height);
+    page.drawImage(photo, { x:imgX, y:FOOTER_H, width:d.width*s, height:d.height*s, opacity:0.9 });
+    // dim overlay
+    page.drawRectangle({ x:imgX, y:FOOTER_H, width:imgW, height:contentH, color:col.black, opacity:0.18 });
+  } else {
+    page.drawRectangle({ x:imgX, y:FOOTER_H, width:imgW, height:contentH, color:col.navy });
   }
 
-  for (const item of right) {
-    if (ryY < 80) break;
-    page.drawCircle({ x: W / 2 + 10, y: ryY + 5, size: 3, color: ACCENT_GREEN });
-    page.drawText(item, { x: W / 2 + 20, y: ryY, size: 13, font: fonts.regular, color: DARK_TEXT, maxWidth: W / 2 - 60 });
-    ryY -= 30;
-  }
+  // Accent bar
+  const barX = imageOnRight ? imgX - 4 : imgX + imgW;
+  page.drawRectangle({ x:barX, y:FOOTER_H, width:4, height:contentH, color:col.blue });
 
-  drawLogos(page, logos.vistaImg, logos.qualitasImg, fonts.regular, false);
+  // Header on text side
+  page.drawRectangle({ x:imageOnRight?0:imgW+4, y:H-68, width:textW+6, height:68, color:col.navy });
+  page.drawRectangle({ x:imageOnRight?0:imgW+4, y:H-72, width:textW+6, height:4, color:col.green });
+  page.drawText(slide.title, { x:textX, y:H-50, size:20, font:fonts.bold, color:col.white, maxWidth:textW-10 });
+
+  let y = H - 100;
+  for (const b of slide.bullets ?? []) {
+    if (y < FOOTER_H + 20) break;
+    page.drawCircle({ x:textX+12, y:y+5, size:3, color:col.blue });
+    page.drawText(b, { x:textX+24, y, size:13, font:fonts.reg, color:col.dark, maxWidth:textW-30, lineHeight:18 });
+    y -= 30;
+  }
+  drawFooter(page, fonts, logos);
 }
 
+async function buildBigStatPage(doc: PDFDocument, slide: SlideContent, fonts:{bold:PDFFont;reg:PDFFont}, logos:{vistaImg:PDFImage|null;qualitasImg:PDFImage|null}) {
+  const page = doc.addPage([W, H]);
+  const contentH = H - FOOTER_H;
+
+  const photo = await embedPhotoForSlide(doc, slide.imageQuery);
+  if (photo) {
+    const d = photo.scale(1);
+    const s = Math.max(W/d.width, contentH/d.height);
+    page.drawImage(photo, { x:0, y:FOOTER_H, width:d.width*s, height:d.height*s, opacity:0.5 });
+    page.drawRectangle({ x:0, y:FOOTER_H, width:W, height:contentH, color:col.black, opacity:0.4 });
+  } else {
+    page.drawRectangle({ x:0, y:FOOTER_H, width:W, height:contentH, color:col.navy });
+  }
+
+  // Stat box
+  const bx=220, by=90, bw=520, bh=320;
+  page.drawRectangle({ x:bx, y:H-by-bh, width:bw, height:bh, color:col.black, opacity:0.5 });
+  page.drawRectangle({ x:bx, y:H-by-4, width:bw, height:4, color:col.green });
+  page.drawLine({ start:{x:bx,y:H-by-bh}, end:{x:bx+bw,y:H-by-bh}, thickness:1.5, color:col.blue });
+  page.drawLine({ start:{x:bx,y:H-by}, end:{x:bx,y:H-by-bh}, thickness:1.5, color:col.blue });
+  page.drawLine({ start:{x:bx+bw,y:H-by}, end:{x:bx+bw,y:H-by-bh}, thickness:1.5, color:col.blue });
+
+  page.drawText(slide.title, { x:bx+20, y:H-by-36, size:17, font:fonts.bold, color:col.white, maxWidth:bw-40 });
+
+  // Big stat
+  const stat = slide.stat ?? "";
+  const statSize = 80;
+  const statW = fonts.bold.widthOfTextAtSize(stat, statSize);
+  page.drawText(stat, { x:bx+(bw-statW)/2, y:H-by-150, size:statSize, font:fonts.bold, color:col.blue });
+
+  if (slide.statLabel) {
+    const lw = fonts.bold.widthOfTextAtSize(slide.statLabel, 18);
+    page.drawText(slide.statLabel, { x:bx+(bw-lw)/2, y:H-by-185, size:18, font:fonts.bold, color:col.green });
+  }
+
+  let y = H - by - 220;
+  for (const b of slide.bullets ?? []) {
+    if (y < FOOTER_H + 10) break;
+    page.drawText(`• ${b}`, { x:bx+20, y, size:11, font:fonts.reg, color:rgb(0.85,0.85,0.85), maxWidth:bw-40 });
+    y -= 22;
+  }
+  drawFooter(page, fonts, logos, true);
+}
+
+async function buildTwoColumnPage(doc: PDFDocument, slide: SlideContent, fonts:{bold:PDFFont;reg:PDFFont}, logos:{vistaImg:PDFImage|null;qualitasImg:PDFImage|null}) {
+  const page = doc.addPage([W, H]);
+  page.drawRectangle({ x:0, y:FOOTER_H, width:W, height:H-FOOTER_H, color:col.white });
+  page.drawRectangle({ x:0, y:H-70, width:W, height:70, color:col.navy });
+  page.drawRectangle({ x:0, y:H-74, width:W, height:4, color:col.green });
+  page.drawRectangle({ x:0, y:H-70, width:5, height:70, color:col.blue });
+  page.drawText(slide.title, { x:24, y:H-50, size:24, font:fonts.bold, color:col.white, maxWidth:W-48 });
+
+  const colW = (W-60)/2;
+  // Column boxes
+  page.drawRectangle({ x:14, y:FOOTER_H+10, width:colW, height:H-FOOTER_H-90, color:rgb(0.94,0.96,0.99) });
+  page.drawRectangle({ x:14+colW+12, y:FOOTER_H+10, width:colW, height:H-FOOTER_H-90, color:rgb(0.94,0.96,0.99) });
+
+  let ly = H - 105, ry = H - 105;
+  for (const b of slide.leftColumn ?? []) {
+    if (ly < FOOTER_H + 20) break;
+    page.drawCircle({ x:28, y:ly+5, size:3, color:col.green });
+    page.drawText(b, { x:40, y:ly, size:12, font:fonts.reg, color:col.dark, maxWidth:colW-30 });
+    ly -= 28;
+  }
+  for (const b of slide.rightColumn ?? []) {
+    if (ry < FOOTER_H + 20) break;
+    page.drawCircle({ x:28+colW+12, y:ry+5, size:3, color:col.green });
+    page.drawText(b, { x:40+colW+12, y:ry, size:12, font:fonts.reg, color:col.dark, maxWidth:colW-30 });
+    ry -= 28;
+  }
+  drawFooter(page, fonts, logos);
+}
+
+// ── Main export ──────────────────────────────────────────────────
 export async function buildPdf(plan: PresentationPlan): Promise<Buffer> {
   const doc = await PDFDocument.create();
-  const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
-  const regularFont = await doc.embedFont(StandardFonts.Helvetica);
-  const fonts = { bold: boldFont, regular: regularFont };
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const reg  = await doc.embedFont(StandardFonts.Helvetica);
+  const fonts = { bold, reg };
   const logos = await embedLogos(doc);
 
   for (const slide of plan.slides) {
     switch (slide.layout) {
-      case "title":
-        await addTitleSlide(doc, slide, fonts, logos);
-        break;
-      case "two-column":
-        await addTwoColumnSlide(doc, slide, fonts, logos);
-        break;
-      default:
-        await addContentSlide(doc, slide, fonts, logos);
+      case "title":       await buildTitlePage(doc, slide, fonts, logos);           break;
+      case "image-right": await buildImagePage(doc, slide, fonts, logos, true);     break;
+      case "image-left":  await buildImagePage(doc, slide, fonts, logos, false);    break;
+      case "two-column":  await buildTwoColumnPage(doc, slide, fonts, logos);       break;
+      case "big-stat":    await buildBigStatPage(doc, slide, fonts, logos);         break;
+      default:            await buildContentPage(doc, slide, fonts, logos);         break;
     }
   }
 
-  const bytes = await doc.save();
-  return Buffer.from(bytes);
+  return Buffer.from(await doc.save());
 }

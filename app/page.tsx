@@ -99,12 +99,12 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Ollama badge */}
+            {/* AI badge */}
             <div
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold mr-2"
               style={{ background: "rgba(255,255,255,0.15)", color: "white", border: "2px solid rgba(255,255,255,0.25)" }}
             >
-              🦙 Ollama (local)
+              ⚡ Groq · 📸 Pexels
             </div>
             {["Upload", "Describe", "Create"].map((label, i) => {
               const done = completedSteps > i;
@@ -141,22 +141,6 @@ export default function Home() {
             </p>
           </div>
           <div className="text-8xl select-none opacity-30 absolute right-8 top-1/2 -translate-y-1/2">📊</div>
-        </div>
-
-        {/* ── OLLAMA SETUP NOTICE ── */}
-        <div
-          className="rounded-2xl p-4 flex items-start gap-3"
-          style={{ background: "#fffbea", border: "2px solid #f5d86a", borderBottom: "4px solid #e6c84a" }}
-        >
-          <span className="text-2xl mt-0.5">🦙</span>
-          <div>
-            <div className="font-black text-sm" style={{ color: "#7a5a00" }}>Using Ollama (local AI — free &amp; private)</div>
-            <div className="text-xs font-semibold mt-1" style={{ color: "#9a7a20" }}>
-              Make sure Ollama is running: <code className="bg-yellow-100 px-1 rounded">ollama serve</code> · Default model: <code className="bg-yellow-100 px-1 rounded">llama3.2</code>.
-              For image references, also pull a vision model: <code className="bg-yellow-100 px-1 rounded">ollama pull llama3.2-vision</code>.
-              Change model via <code className="bg-yellow-100 px-1 rounded">OLLAMA_MODEL</code> env var.
-            </div>
-          </div>
         </div>
 
         {/* ── STEP 1: UPLOADS ── */}
@@ -305,11 +289,11 @@ export default function Home() {
                 className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl animate-bounce shadow-lg"
                 style={{ background: "linear-gradient(135deg, #1B9BD9, #1B3A6B)", border: "3px solid #1482b8" }}
               >
-                🦙
+                🤖
               </div>
               <div>
-                <div className="font-black text-xl" style={{ color: "#1B3A6B" }}>Ollama is thinking…</div>
-                <div className="text-slate-500 font-semibold text-sm mt-1">Local AI is generating your slides — usually takes 30–90 seconds</div>
+                <div className="font-black text-xl" style={{ color: "#1B3A6B" }}>AI is generating your slides…</div>
+                <div className="text-slate-500 font-semibold text-sm mt-1">Writing content with Groq · fetching Pexels photos · building your deck</div>
               </div>
               <div className="w-64 h-4 rounded-full overflow-hidden" style={{ background: "#e0e9f5", border: "2px solid #c8d8ea" }}>
                 <div
@@ -389,7 +373,7 @@ export default function Home() {
       <footer className="mt-16 py-6" style={{ borderTop: "3px solid #d0e8f5", background: "rgba(255,255,255,0.5)" }}>
         <div className="max-w-5xl mx-auto px-6 flex items-center justify-between text-xs font-bold text-slate-400">
           <span>Vista Eye Specialist · Internal Tool</span>
-          <span>🦙 Ollama (local) · Qualitas Health</span>
+          <span>⚡ Groq · 📸 Pexels · Qualitas Health</span>
         </div>
       </footer>
     </div>

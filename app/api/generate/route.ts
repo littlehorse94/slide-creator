@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generatePresentationPlan, describeReferenceImage } from "@/lib/generateSlides";
+import { generatePresentationPlan, describeReferenceFile } from "@/lib/generateSlides";
 import { buildPptx } from "@/lib/buildPptx";
 import { buildPdf } from "@/lib/buildPdf";
 import { parseSourceFile } from "@/lib/parseSource";
@@ -16,45 +16,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
     }
 
-    // Collect multiple reference files
     const referenceFiles = formData.getAll("reference") as File[];
-    // Collect multiple source files
-    const sourceFiles = formData.getAll("source") as File[];
+    const sourceFiles    = formData.getAll("source") as File[];
 
-    // Parse all source files and concatenate
+    // Parse all source files
     const sourceParts: string[] = [];
     for (const file of sourceFiles) {
-      const buf = Buffer.from(await file.arrayBuffer());
+      const buf  = Buffer.from(await file.arrayBuffer());
       const text = await parseSourceFile(buf, file.type, file.name);
       sourceParts.push(`--- ${file.name} ---\n${text}`);
     }
     const sourceContent = sourceParts.length > 0 ? sourceParts.join("\n\n") : null;
 
-    // Describe all reference files
+    // Describe reference files
     const referenceDescriptions: string[] = [];
     for (const file of referenceFiles) {
-      const buf = Buffer.from(await file.arrayBuffer());
-      const desc = await describeReferenceImage(buf, file.type, file.name);
-      if (desc) referenceDescriptions.push(`[${file.name}]: ${desc}`);
+      const buf  = Buffer.from(await file.arrayBuffer());
+      const desc = await describeReferenceFile(buf, file.type, file.name);
+      if (desc) referenceDescriptions.push(desc);
     }
 
-    // Generate presentation plan
+    // Generate plan via Groq
     const plan = await generatePresentationPlan(prompt, sourceContent, referenceDescriptions);
 
-    // Build output file
+    // Build output (images fetched from Pexels inside builders)
     let fileBuffer: Buffer;
     let contentType: string;
     let filename: string;
 
     if (outputFormat === "pdf") {
-      fileBuffer = await buildPdf(plan);
+      fileBuffer  = await buildPdf(plan);
       contentType = "application/pdf";
-      filename = `${plan.title.replace(/[^a-z0-9]/gi, "_")}.pdf`;
+      filename    = `${plan.title.replace(/[^a-z0-9]/gi, "_")}.pdf`;
     } else {
-      fileBuffer = await buildPptx(plan);
-      contentType =
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation";
-      filename = `${plan.title.replace(/[^a-z0-9]/gi, "_")}.pptx`;
+      fileBuffer  = await buildPptx(plan);
+      contentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+      filename    = `${plan.title.replace(/[^a-z0-9]/gi, "_")}.pptx`;
     }
 
     return new NextResponse(fileBuffer as unknown as BodyInit, {
@@ -66,9 +63,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (err: any) {
     console.error("Generate error:", err);
-    return NextResponse.json(
-      { error: err.message || "Generation failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err.message || "Generation failed" }, { status: 500 });
   }
 }
