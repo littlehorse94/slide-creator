@@ -104,7 +104,7 @@ export default function Home() {
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold mr-2"
               style={{ background: "rgba(255,255,255,0.15)", color: "white", border: "2px solid rgba(255,255,255,0.25)" }}
             >
-              ⚡ Groq · 📸 Pexels
+              ✨ Gemini · 📸 Pexels
             </div>
             {["Upload", "Describe", "Create"].map((label, i) => {
               const done = completedSteps > i;
@@ -293,7 +293,7 @@ export default function Home() {
               </div>
               <div>
                 <div className="font-black text-xl" style={{ color: "#1B3A6B" }}>AI is generating your slides…</div>
-                <div className="text-slate-500 font-semibold text-sm mt-1">Writing content with Groq · fetching Pexels photos · building your deck</div>
+                <div className="text-slate-500 font-semibold text-sm mt-1">Writing content with Gemini · fetching Pexels photos · building your deck</div>
               </div>
               <div className="w-64 h-4 rounded-full overflow-hidden" style={{ background: "#e0e9f5", border: "2px solid #c8d8ea" }}>
                 <div
@@ -373,7 +373,7 @@ export default function Home() {
       <footer className="mt-16 py-6" style={{ borderTop: "3px solid #d0e8f5", background: "rgba(255,255,255,0.5)" }}>
         <div className="max-w-5xl mx-auto px-6 flex items-center justify-between text-xs font-bold text-slate-400">
           <span>Vista Eye Specialist · Internal Tool</span>
-          <span>⚡ Groq · 📸 Pexels · Qualitas Health</span>
+          <span>✨ Gemini · 📸 Pexels · Qualitas Health</span>
         </div>
       </footer>
     </div>
