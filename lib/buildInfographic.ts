@@ -1,5 +1,5 @@
 import satori from "satori";
-import { Resvg } from "@resvg/resvg-js";
+import sharp from "sharp";
 import fs from "fs";
 import path from "path";
 import { PDFDocument } from "pdf-lib";
@@ -541,8 +541,7 @@ async function renderSlide(element: object): Promise<Buffer> {
     fonts: fonts.length > 0 ? fonts : [{ name: "sans-serif", data: regular.byteLength > 0 ? regular : new ArrayBuffer(0), weight: 400, style: "normal" }],
   });
 
-  const resvg = new Resvg(svg, { fitTo: { mode: "width" as const, value: W } });
-  return Buffer.from(resvg.render().asPng());
+  return await sharp(Buffer.from(svg)).png().toBuffer();
 }
 
 // ── main export ──────────────────────────────────────────────────────────────
