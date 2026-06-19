@@ -9,7 +9,6 @@ export default function Home() {
   const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
   const [sourceFiles, setSourceFiles] = useState<File[]>([]);
   const [prompt, setPrompt] = useState("");
-  const [format, setFormat] = useState<"pptx" | "pdf">("pptx");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<PresentationPlan | null>(null);
@@ -18,8 +17,7 @@ export default function Home() {
   const [downloadFilename, setDownloadFilename] = useState("");
   const resultRef = useRef<HTMLDivElement>(null);
 
-  const doGenerate = async (overrideFormat?: "pptx" | "pdf") => {
-    const outputFormat = overrideFormat ?? format;
+  const doGenerate = async () => {
     if (!prompt.trim()) {
       setError("Please describe what slides you want to create.");
       return;
@@ -32,7 +30,6 @@ export default function Home() {
     try {
       const body = new FormData();
       body.append("prompt", prompt);
-      body.append("format", outputFormat);
       for (const f of referenceFiles) body.append("reference", f);
       for (const f of sourceFiles) body.append("source", f);
 
@@ -54,11 +51,12 @@ export default function Home() {
       setDownloadUrl(URL.createObjectURL(blob));
       const cd = res.headers.get("Content-Disposition") || "";
       const match = cd.match(/filename="?([^"]+)"?/);
-      setDownloadFilename(match?.[1] ?? `slides.${outputFormat}`);
+      setDownloadFilename(match?.[1] ?? "slides.pdf");
 
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-    } catch (e: any) {
-      setError(e.message || "Something went wrong. Please try again.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Something went wrong.";
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -99,12 +97,11 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* AI badge */}
             <div
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold mr-2"
               style={{ background: "rgba(255,255,255,0.15)", color: "white", border: "2px solid rgba(255,255,255,0.25)" }}
             >
-              ✨ Gemini · 📸 Pexels
+              ✨ Groq · 📸 Pexels
             </div>
             {["Upload", "Describe", "Create"].map((label, i) => {
               const done = completedSteps > i;
@@ -135,12 +132,12 @@ export default function Home() {
           style={{ background: "linear-gradient(135deg, #1B3A6B 0%, #1B9BD9 100%)", border: "3px solid #1B3A6B", borderBottom: "6px solid #132b52" }}
         >
           <div className="relative z-10">
-            <h1 className="text-white font-black text-3xl leading-tight mb-1">Build slides in seconds 🚀</h1>
+            <h1 className="text-white font-black text-3xl leading-tight mb-1">Build branded infographics in seconds 🚀</h1>
             <p className="text-blue-200 font-semibold text-sm max-w-md">
-              Drop your data, describe your vision, and let AI craft a branded presentation — complete with Vista &amp; Qualitas logos.
+              Drop your data, describe your vision, and let AI craft polished Vista-branded slides — complete with Pexels photos, charts, and logos.
             </p>
           </div>
-          <div className="text-8xl select-none opacity-30 absolute right-8 top-1/2 -translate-y-1/2">📊</div>
+          <div className="text-8xl select-none opacity-30 absolute right-8 top-1/2 -translate-y-1/2">🎨</div>
         </div>
 
         {/* ── STEP 1: UPLOADS ── */}
@@ -217,36 +214,27 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ── STEP 3: FORMAT + GENERATE ── */}
+        {/* ── STEP 3: GENERATE ── */}
         <div className="card-duo bg-white p-7">
           <div className="flex items-center gap-3 mb-5">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm" style={{ background: "#FF9600", border: "2px solid #cc7800" }}>3</div>
             <div>
-              <div className="font-black text-lg" style={{ color: "#1B3A6B" }}>Choose format &amp; generate</div>
-              <div className="text-slate-500 text-xs font-semibold">Pick your output format, then hit Create!</div>
+              <div className="font-black text-lg" style={{ color: "#1B3A6B" }}>Generate your slides</div>
+              <div className="text-slate-500 text-xs font-semibold">AI builds branded 16:9 infographic slides, exported as PDF</div>
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-            <div className="flex gap-3">
-              {(["pptx", "pdf"] as const).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setFormat(f)}
-                  className="px-5 py-3 rounded-2xl font-black text-sm transition-all"
-                  style={
-                    format === f
-                      ? { background: "#1B9BD9", color: "white", border: "2px solid #1482b8", borderBottom: "4px solid #1482b8" }
-                      : { background: "#f0f8ff", color: "#1B9BD9", border: "2px solid #c8dff5", borderBottom: "4px solid #b0cce8" }
-                  }
-                >
-                  {f === "pptx" ? "📑 PPTX" : "📄 PDF"}
-                </button>
-              ))}
+            <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ background: "#f0f8ff", border: "2px solid #c8dff5" }}>
+              <span className="text-xl">📄</span>
+              <div>
+                <div className="font-black text-sm" style={{ color: "#1B3A6B" }}>PDF Output</div>
+                <div className="text-xs text-slate-400 font-semibold">16:9 · Vista branded · Pexels photos</div>
+              </div>
             </div>
 
             <button
-              onClick={() => doGenerate()}
+              onClick={doGenerate}
               disabled={loading || !prompt.trim()}
               className="sm:ml-auto flex items-center gap-3 px-8 py-4 rounded-2xl text-white font-black text-base transition-all btn-chunky disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
@@ -293,7 +281,7 @@ export default function Home() {
               </div>
               <div>
                 <div className="font-black text-xl" style={{ color: "#1B3A6B" }}>AI is generating your slides…</div>
-                <div className="text-slate-500 font-semibold text-sm mt-1">Writing content with Gemini · fetching Pexels photos · building your deck</div>
+                <div className="text-slate-500 font-semibold text-sm mt-1">Writing content with Groq · fetching Pexels photos · rendering infographics</div>
               </div>
               <div className="w-64 h-4 rounded-full overflow-hidden" style={{ background: "#e0e9f5", border: "2px solid #c8d8ea" }}>
                 <div
@@ -345,26 +333,15 @@ export default function Home() {
                 <span className="text-xl">📥</span>
                 <div className="font-black text-lg" style={{ color: "#1B3A6B" }}>Download</div>
               </div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <a
-                  href={downloadUrl}
-                  download={downloadFilename}
-                  className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl text-white font-black text-sm btn-chunky"
-                  style={{ background: "linear-gradient(135deg, #1B9BD9, #1B3A6B)", border: "2px solid #1482b8", borderBottom: "4px solid #132b52" }}
-                >
-                  <span className="text-xl">{format === "pptx" ? "📑" : "📄"}</span>
-                  Download {format.toUpperCase()}
-                </a>
-                <button
-                  onClick={() => { const alt = format === "pptx" ? "pdf" : "pptx"; setFormat(alt); doGenerate(alt); }}
-                  disabled={loading}
-                  className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-black text-sm btn-chunky disabled:opacity-50"
-                  style={{ background: "#f0f8ff", color: "#1B9BD9", border: "2px solid #c8dff5", borderBottom: "4px solid #b0cce8" }}
-                >
-                  <span className="text-xl">{format === "pptx" ? "📄" : "📑"}</span>
-                  Also get as {format === "pptx" ? "PDF" : "PPTX"}
-                </button>
-              </div>
+              <a
+                href={downloadUrl}
+                download={downloadFilename}
+                className="inline-flex items-center gap-3 px-6 py-4 rounded-2xl text-white font-black text-sm btn-chunky"
+                style={{ background: "linear-gradient(135deg, #1B9BD9, #1B3A6B)", border: "2px solid #1482b8", borderBottom: "4px solid #132b52" }}
+              >
+                <span className="text-xl">📄</span>
+                Download PDF
+              </a>
             </div>
           </div>
         )}
@@ -373,7 +350,7 @@ export default function Home() {
       <footer className="mt-16 py-6" style={{ borderTop: "3px solid #d0e8f5", background: "rgba(255,255,255,0.5)" }}>
         <div className="max-w-5xl mx-auto px-6 flex items-center justify-between text-xs font-bold text-slate-400">
           <span>Vista Eye Specialist · Internal Tool</span>
-          <span>✨ Gemini · 📸 Pexels · Qualitas Health</span>
+          <span>✨ Groq · 📸 Pexels · Qualitas Health</span>
         </div>
       </footer>
     </div>
